@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #define MAX_INPUT 1024
 #define MAX_ARGS 64
@@ -24,6 +25,29 @@ void parse_args(char *cmd, char *args[]) {
 char *trim_left(char *s) {
     while (*s == ' ') s++;
     return s;
+}
+
+void handle_redirection(char *args[], char **infile, char **outfile) {
+	*infile = NULL;
+	*outfile = NULL;
+
+	for (int i = 0; args[i] != NULL; i++) {
+		if (strcmp(args[i], "<") == 0) {
+			if (args[i + 1] != NULL) {
+				*infile = args[i + 1];
+				args[i] = NULL;
+			}
+			break;
+		}
+
+		if (strcmp(args[i], ">") == 0) {
+			if (args[i + 1] != NULL) {
+				*outfile = args[i + 1];
+				args[i] = NULL;
+			}
+			break;
+		}
+	}
 }
 
 int main() {
@@ -117,6 +141,11 @@ int main() {
         char *args[MAX_ARGS];
         parse_args(temp, args);
 
+        char *infile = NULL;
+        char *outfile = NULL;
+
+        handle_redirection(args, &infile, &outfile);
+
         // Built-in cd
         if (strcmp(args[0], "cd") == 0) {
             if (args[1] == NULL) {
@@ -132,6 +161,27 @@ int main() {
         pid_t pid = fork();
 
         if (pid == 0) {
+
+            if (infile != NULL) {
+                int fd_in = open(infile, O_RDONLY);
+                if (fd_in < 0) {
+                    perror("input redirection");
+                    exit(1);
+                }
+                dup2(fd_in, STDIN_FILENO);
+                close(fd_in);
+            }
+
+            if (outfile != NULL) {
+                int fd_out = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd_out < 0) {
+                    perror("output redirection");
+                    exit(1);
+                }
+                dup2(fd_out, STDOUT_FILENO);
+                close(fd_out);
+            }
+
             execvp(args[0], args);
             perror("execvp");
             exit(1);

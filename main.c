@@ -7,40 +7,119 @@
 #define MAX_INPUT 1024
 #define MAX_ARGS 64
 
+// tokenize a string into args[]
+void parse_args(char *cmd, char *args[]) {
+    int i = 0;
+    char *token = strtok(cmd, " ");
+
+    while (token != NULL && i < MAX_ARGS - 1) { // -1 cause final NULL
+        args[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    
+    args[i] = NULL;
+}
+
+// trims spaces at the start of the command (if entered)
+char *trim_left(char *s) {
+    while (*s == ' ') s++;
+    return s;
+}
+
 int main() {
     char input[MAX_INPUT];
-    char *args[MAX_ARGS];
 
     while (1) {
         printf("myshell> ");
-        fflush(stdout);
+        // prevents buffering
+        fflush(stdout);   
 
+		// reads line
         if (!fgets(input, MAX_INPUT, stdin)) {
             break;
         }
 
+		// removes "\n"
         input[strcspn(input, "\n")] = 0;
 
+		
         if (strlen(input) == 0) {
             continue;
         }
 
-        int i=0;
-	char *token = strtok(input, " ");
+        // built-in exit
+        if (strcmp(input, "exit") == 0) {
+            break;
+        }
 
-	while (token!= NULL && i < MAX_ARGS -1) {
-	    args[i++] = token;
-	    token = strtok(NULL, " ");
-	} 
-	// loops over all words then stores pointers in args[]
-	args[i] = NULL;
-	
-	if (strcmp(args[0], "exit") == 0) {
-	    break;
-	}
+        // checks if pipe exists, strchr searches for "|"
+        char *pipe_pos = strchr(input, '|');
 
-	if (strcmp(args[0], "cd") == 0) {
-	    if (args[1] == NULL) {
+        if (pipe_pos != NULL) {
+            // split into left and right commands
+            *pipe_pos = '\0';
+            char *left_cmd = trim_left(input);
+            char *right_cmd = trim_left(pipe_pos + 1);
+
+			// an array each for left and right parts
+            char *left_args[MAX_ARGS];
+            char *right_args[MAX_ARGS];
+
+            parse_args(left_cmd, left_args);
+            parse_args(right_cmd, right_args);
+
+            int fd[2];
+            if (pipe(fd) == -1) {
+                perror("pipe");
+                continue;
+            }
+
+            pid_t pid1 = fork();
+            if (pid1 == 0) {
+                // 1st child - runs left command and sends o/p goes to pipe
+                dup2(fd[1], STDOUT_FILENO);
+                close(fd[0]);
+                close(fd[1]);
+
+                execvp(left_args[0], left_args);
+                perror("execvp left");
+                exit(1);
+            }
+
+            pid_t pid2 = fork();
+            if (pid2 == 0) {
+                // 2nd child - runs right command and i/p comes from pipe
+                // child2 reads output by child1
+                dup2(fd[0], STDIN_FILENO);
+                close(fd[1]);
+                close(fd[0]);
+				
+                execvp(right_args[0], right_args);
+                perror("execvp right");
+                exit(1);
+            }
+
+            // parent closes both ends of the pipe
+            close(fd[0]);
+            close(fd[1]);
+
+			// waits for children to finsih
+            waitpid(pid1, NULL, 0);
+            waitpid(pid2, NULL, 0);
+
+            continue;
+        }
+
+        // if no pipe -  normal single command execution
+        char temp[MAX_INPUT];
+        strcpy(temp, input);
+
+        char *args[MAX_ARGS];
+        parse_args(temp, args);
+
+        // Built-in cd
+        if (strcmp(args[0], "cd") == 0) {
+            if (args[1] == NULL) {
                 fprintf(stderr, "myshell: expected argument to \"cd\"\n");
             } else {
                 if (chdir(args[1]) != 0) {
@@ -50,20 +129,17 @@ int main() {
             continue;
         }
 
-	pid_t pid = fork();
+        pid_t pid = fork();
 
-	if(pid == 0) {
-	    execvp(args[0], args);
-	    perror("myshell");
-	    exit(EXIT_FAILURE);
-	}
-	else if (pid < 0) {
-	    perror("myerror");
-	}
-	else {
-	    wait(NULL);
-	}
- 
+        if (pid == 0) {
+            execvp(args[0], args);
+            perror("execvp");
+            exit(1);
+        } else if (pid < 0) {
+            perror("fork");
+        } else {
+            wait(NULL);
+        }
     }
 
     return 0;

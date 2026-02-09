@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <signal.h>
+
 
 #define MAX_INPUT 1024
 #define MAX_ARGS 64
@@ -50,8 +53,15 @@ void handle_redirection(char *args[], char **infile, char **outfile) {
 	}
 }
 
+void handle_sigint(int sig) {
+    write(STDOUT_FILENO, "\nmyshell> ", 10);
+}
+
+
 int main() {
     char input[MAX_INPUT];
+    signal(SIGINT, handle_sigint);
+
 
     while (1) {
         printf("myshell> ");
@@ -66,7 +76,6 @@ int main() {
 		// removes "\n"
         input[strcspn(input, "\n")] = 0;
 
-		
         if (strlen(input) == 0) {
             continue;
         }
@@ -141,6 +150,17 @@ int main() {
         char *args[MAX_ARGS];
         parse_args(temp, args);
 
+        // ---------- DAY 5 ADDITION START ----------
+        int background = 0;
+        for (int i = 0; args[i] != NULL; i++) {
+            if (strcmp(args[i], "&") == 0) {
+                background = 1;
+                args[i] = NULL;
+                break;
+            }
+        }
+        // ---------- DAY 5 ADDITION END ----------
+
         char *infile = NULL;
         char *outfile = NULL;
 
@@ -188,7 +208,10 @@ int main() {
         } else if (pid < 0) {
             perror("fork");
         } else {
-            wait(NULL);
+            // ---------- DAY 5 ADDITION ----------
+            if (!background) {
+                wait(NULL);
+            }
         }
     }
 

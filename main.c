@@ -110,6 +110,8 @@ int main() {
             pid_t pid1 = fork();
             if (pid1 == 0) {
                 // 1st child - runs left command and sends o/p goes to pipe
+                signal(SIGINT, SIG_DFL);
+
                 dup2(fd[1], STDOUT_FILENO);
                 close(fd[0]);
                 close(fd[1]);
@@ -123,6 +125,8 @@ int main() {
             if (pid2 == 0) {
                 // 2nd child - runs right command and i/p comes from pipe
                 // child2 reads output by child1
+                signal(SIGINT, SIG_DFL);
+
                 dup2(fd[0], STDIN_FILENO);
                 close(fd[1]);
                 close(fd[0]);
@@ -150,8 +154,7 @@ int main() {
         char *args[MAX_ARGS];
         parse_args(temp, args);
 
-        // ---------- DAY 5 ADDITION START ----------
-        int background = 0;
+            int background = 0;
         for (int i = 0; args[i] != NULL; i++) {
             if (strcmp(args[i], "&") == 0) {
                 background = 1;
@@ -159,7 +162,6 @@ int main() {
                 break;
             }
         }
-        // ---------- DAY 5 ADDITION END ----------
 
         char *infile = NULL;
         char *outfile = NULL;
@@ -181,6 +183,7 @@ int main() {
         pid_t pid = fork();
 
         if (pid == 0) {
+            signal(SIGINT, SIG_DFL);
 
             if (infile != NULL) {
                 int fd_in = open(infile, O_RDONLY);

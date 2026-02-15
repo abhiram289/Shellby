@@ -78,10 +78,18 @@ void handle_sigint(int sig)
     write(STDOUT_FILENO, "\nmyshell> ", 10);
 }
 
+void handle_sigchld(int sig)
+{
+    while (waitpid(-1, NULL, WNOHANG) > 0);
+}
+
+
 int main()
 {
     char input[MAX_INPUT];
     signal(SIGINT, handle_sigint);
+    signal(SIGCHLD, handle_sigchld);
+
 
     while (1)
     {

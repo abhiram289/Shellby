@@ -22,4 +22,3 @@ Shellby is a lightweight Unix-like command-line shell built in C that replicates
 - **System Calls:** `fork()`, `execvp()`, `wait()`, `pipe()`, `dup2()`  
 - **Platform:** Linux / Unix-based systems  
 
----
